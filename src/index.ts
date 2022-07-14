@@ -1,0 +1,170 @@
+import { IncomingMessage as Request, ServerResponse as Response } from 'http';
+import { get } from 'https';
+
+type ClientId = string | number;
+
+interface UaasKV {
+    n: string;
+    v: string;
+}
+
+interface UaasAnswer {
+    flags: Array<UaasKV>;
+    i: string;
+    experiments: string;
+}
+
+interface Answer {
+    flags: Record<string, string[]>;
+    i: string;
+    experiments: string;
+}
+
+interface NoAnswer {
+    flags: Record<string, undefined>;
+    i?: string;
+    experiments?: string;
+}
+
+interface CacheItem {
+    time: number;
+    data: Answer;
+}
+
+const cookieName = '_ymab_param';
+const MAX_ATTEMPTS = 10;
+const timeout = 200;
+const cache_ttl = 200;
+const base = 'https://uaas.yandex.ru/v1/exps/?client_id=:client_id&i=:iCookie&url=:pageUrl';
+
+const cache: Record<string, CacheItem> = {};
+
+function transform(answer: UaasAnswer): Answer {
+    return {
+        i: answer.i,
+        experiments: answer.experiments,
+        flags: answer.flags.reduce<Record<string, string[]>>((acc, { n, v }) => {
+            const storage = acc[n];
+
+            if (storage) {
+                storage.push(v);
+            } else {
+                acc[n] = [v];
+            }
+
+            return acc;
+        }, {}),
+    }
+}
+
+function loadData(id: ClientId, iParam: string | undefined, pageUrl?: string): Promise<Answer> {
+    return new Promise((resolve, reject) => {
+        let attempts = MAX_ATTEMPTS;
+
+        const url = base
+            .replace(':client_id', String(id))
+            .replace(':pageUrl', encodeURIComponent(pageUrl || ''))
+            .replace(':iCookie', iParam || '');
+
+        const timer = setTimeout(reject, timeout);
+
+        function success(answer: UaasAnswer) {
+            const data = transform(answer);
+
+            clearTimeout(timer);
+
+            resolve(data);
+        }
+
+        function error(err: any) {
+            if (--attempts > 0) {
+
+                sendRequest(url).then(success, error);
+
+                return;
+            }
+
+            clearTimeout(timer);
+
+            reject(err);
+        }
+
+        sendRequest(url).then(success, error);
+    });
+}
+
+function sendRequest(url: string): Promise<UaasAnswer> {
+    return new Promise((resolve, reject) => {
+        get(url, (res) => {
+            let data = '';
+
+            res.on('data', chunk => data += chunk);
+
+            res.on('close', function () {
+                if (res.statusCode === 200) {
+                    resolve(JSON.parse(data));
+                }
+            });
+
+            res.on('error', reject);
+        }).on('error', reject);
+    })
+}
+
+function getCookie(cookieString?: string, searchName = cookieName): string | undefined {
+    if (!cookieString) return undefined;
+
+    const cookies = cookieString.split(`;`);
+    for (const cookie of cookies) {
+        const [name, value] = cookie.split('=');
+
+        if (searchName === name?.trim()) {
+            return value?.trim();
+        }
+    }
+}
+
+export function getYandexMetricaAbt(req: Request, res: Response, clientId: string, param?: string, pageUrl?: string): Promise<Answer | NoAnswer> {
+    return new Promise(resolve => {
+        if (!param) {
+            param = getCookie(req.headers.cookie);
+        }
+
+        const key = `${clientId}_${param}`;
+
+        if (param) {
+            const cached = cache[key];
+
+            if (cached && (Date.now() - cached.time) < cache_ttl) {
+                return resolve(cached.data);
+            }
+        }
+
+        const reqUrl = `https://${req.headers.host}${req.url}`;
+
+        loadData(clientId, param, pageUrl || reqUrl)
+            .then(answer => {
+                if (param) {
+                    cache[key] = {
+                        data: answer,
+                        time: Date.now(),
+                    };
+                }
+
+                res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}`);
+
+                resolve(answer);
+            })
+            .catch((e) => {
+                if (e instanceof Error) {
+                    console.error(e);
+                }
+
+                resolve({
+                    flags: {},
+                    i: param,
+                    experiments: undefined,
+                });
+            });
+    });
+}

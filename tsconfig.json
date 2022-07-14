@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "es2016",
+    "module": "commonjs",
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "alwaysStrict": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "skipDefaultLibCheck": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "sourceMap": false,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "allowSyntheticDefaultImports": true,
+    "allowJs": false,
+    "composite": true,
+  }
+}
