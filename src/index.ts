@@ -15,15 +15,10 @@ interface UaasAnswer {
 }
 
 interface Answer {
-    flags: Record<string, string[]>;
-    i: string;
-    experiments: string;
-}
-
-interface NoAnswer {
-    flags: Record<string, undefined>;
+    flags: Record<string, string[] | undefined>;
     i?: string;
     experiments?: string;
+    ready: true;
 }
 
 interface CacheItem {
@@ -54,6 +49,7 @@ function transform(answer: UaasAnswer): Answer {
 
             return acc;
         }, {}),
+        ready: true,
     }
 }
 
@@ -124,16 +120,14 @@ function getCookie(cookieString?: string, searchName = cookieName): string | und
     }
 }
 
-export function getYandexMetricaAbt(req: Request, res: Response, clientId: string, param?: string, pageUrl?: string): Promise<Answer | NoAnswer> {
+export function getYandexMetricaAbt(req: Request, res: Response, clientId: string, param?: string, pageUrl?: string): Promise<Answer> {
     return new Promise(resolve => {
         if (!param) {
             param = getCookie(req.headers.cookie);
         }
 
-        const key = `${clientId}_${param}`;
-
         if (param) {
-            const cached = cache[key];
+            const cached = cache[`${clientId}_${param}`];
 
             if (cached && (Date.now() - cached.time) < cache_ttl) {
                 return resolve(cached.data);
@@ -144,14 +138,14 @@ export function getYandexMetricaAbt(req: Request, res: Response, clientId: strin
 
         loadData(clientId, param, pageUrl || reqUrl)
             .then(answer => {
-                if (param) {
-                    cache[key] = {
+                if (answer.i) {
+                    cache[`${clientId}_${answer.i}`] = {
                         data: answer,
                         time: Date.now(),
                     };
-                }
 
-                res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}`);
+                    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}`);
+                }
 
                 resolve(answer);
             })
@@ -164,6 +158,7 @@ export function getYandexMetricaAbt(req: Request, res: Response, clientId: strin
                     flags: {},
                     i: param,
                     experiments: undefined,
+                    ready: true,
                 });
             });
     });
