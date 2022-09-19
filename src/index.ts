@@ -112,7 +112,9 @@ function getCookie(cookieString?: string, searchName = cookieName): string | und
 
     const cookies = cookieString.split(`;`);
     for (const cookie of cookies) {
-        const [name, value] = cookie.split('=');
+        const index = cookie.indexOf('=');
+        const name = cookie.slice(0, index);
+        const value = cookie.slice(index + 1);
 
         if (searchName === name?.trim()) {
             return value?.trim();
