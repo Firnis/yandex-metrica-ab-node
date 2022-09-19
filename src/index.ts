@@ -31,6 +31,7 @@ const MAX_ATTEMPTS = 10;
 const timeout = 200;
 const cache_ttl = 200;
 const base = 'https://uaas.yandex.ru/v1/exps/?client_id=:client_id&i=:iCookie&url=:pageUrl';
+const YEAR = 1000 * 60 * 60 * 24 * 365;
 
 const cache: Record<string, CacheItem> = {};
 
@@ -143,12 +144,14 @@ export function getYandexMetricaAbt(req: Request, res: Response, clientId: strin
         loadData(clientId, param, pageUrl || reqUrl)
             .then(answer => {
                 if (answer.i) {
+                    const now = Date.now();
                     cache[`${clientId}_${answer.i}`] = {
                         data: answer,
-                        time: Date.now(),
+                        time: now,
                     };
 
-                    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}`);
+                    const expires = new Date(now + YEAR).toUTCString();
+                    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}; expires=${expires};`);
                 }
 
                 resolve(answer);
