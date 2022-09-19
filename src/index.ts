@@ -126,6 +126,8 @@ export function getYandexMetricaAbt(req: Request, res: Response, clientId: strin
     return new Promise(resolve => {
         if (!param) {
             param = getCookie(req.headers.cookie);
+        } else if (decodeURIComponent(param) === param) {
+            param = encodeURIComponent(param);
         }
 
         if (param) {
