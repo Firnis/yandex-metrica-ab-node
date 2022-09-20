@@ -3,9 +3,16 @@ import { get } from 'https';
 
 type ClientId = string | number;
 
+enum FlagType {
+    Flag = 'flag',
+    Visual = 'visual',
+    Redirect = 'redir',
+}
+
 interface UaasKV {
     n: string;
     v: string;
+    t: FlagType;
 }
 
 interface UaasAnswer {
@@ -51,7 +58,11 @@ function transform(answer: UaasAnswer): Answer {
     return {
         i: answer.i,
         experiments: answer.experiments,
-        flags: answer.flags.reduce<Record<string, string[]>>((acc, { n, v }) => {
+        flags: answer.flags.reduce<Record<string, string[]>>((acc, { n, v, t }) => {
+            if (t === FlagType.Visual) {
+                return acc;
+            }
+
             const storage = acc[n];
 
             if (storage) {
@@ -135,50 +146,57 @@ function getCookie(cookieString?: string, searchName = cookieName): string | und
     }
 }
 
-export function getYandexMetricaAbt(req: Request, res: Response, clientId: string, param?: string, pageUrl?: string): Promise<Answer> {
-    return new Promise(resolve => {
-        if (!param) {
-            param = getCookie(req.headers.cookie);
-        } else if (decodeURIComponent(param) === param) {
-            param = encodeURIComponent(param);
+export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCookie?: string): Promise<Answer> {
+    if (iCookie) {
+        if (decodeURIComponent(iCookie) === iCookie) {
+            iCookie = encodeURIComponent(iCookie);
         }
 
-        if (param) {
-            const cached = cache[`${clientId}_${param}`];
+        const cached = cache[`${clientId}_${iCookie}`];
 
-            if (cached && cached.time > Date.now()) {
-                return resolve(cached.data);
+        if (cached && cached.time > Date.now()) {
+            return Promise.resolve(cached.data);
+        }
+    }
+
+    return loadData(clientId, iCookie, pageUrl)
+        .then(answer => {
+            if (answer.i) {
+                cache[`${clientId}_${answer.i}`] = {
+                    data: answer,
+                    time: Date.now() + cache_ttl,
+                };
             }
-        }
 
-        const reqUrl = `https://${req.headers.host}${req.url}`;
+            return answer;
+        })
+        .catch((e) => {
+            if (e instanceof Error) {
+                console.error(e);
+            }
 
-        loadData(clientId, param, pageUrl || reqUrl)
-            .then(answer => {
-                if (answer.i) {
-                    const now = Date.now();
-                    cache[`${clientId}_${answer.i}`] = {
-                        data: answer,
-                        time: now + cache_ttl,
-                    };
+            return {
+                flags: {},
+                i: iCookie,
+                experiments: undefined,
+                ready: true,
+            };
+        });
+}
 
-                    const expires = new Date(now + YEAR).toUTCString();
-                    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}; expires=${expires};`);
-                }
+export async function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie?: string, pageUrl?: string): Promise<Answer> {
+    if (!iCookie) {
+        iCookie = getCookie(req.headers.cookie);
+    }
 
-                resolve(answer);
-            })
-            .catch((e) => {
-                if (e instanceof Error) {
-                    console.error(e);
-                }
+    const reqUrl = `https://${req.headers.host}${req.url}`;
 
-                resolve({
-                    flags: {},
-                    i: param,
-                    experiments: undefined,
-                    ready: true,
-                });
-            });
-    });
+    const answer = await getYandexMetricaAbtData(clientId, pageUrl || reqUrl, iCookie);
+
+    if (answer.i && res && !res.headersSent) {
+        const expires = new Date(Date.now() + YEAR).toUTCString();
+        res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}; expires=${expires};`);
+    }
+
+    return answer;
 }
