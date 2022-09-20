@@ -31,9 +31,21 @@ const MAX_ATTEMPTS = 10;
 const timeout = 200;
 const cache_ttl = 200;
 const base = 'https://uaas.yandex.ru/v1/exps/?client_id=:client_id&i=:iCookie&url=:pageUrl';
-const YEAR = 1000 * 60 * 60 * 24 * 365;
+const DAY = 1000 * 60 * 60 * 24;
+const YEAR = DAY * 365;
 
 const cache: Record<string, CacheItem> = {};
+
+function clearCache() {
+    for (const [k, v] of Object.entries(cache)) {
+        if (v.time < Date.now()) {
+            delete cache[k];
+        }
+    }
+}
+
+// Чистим кэш раз в сутки
+setInterval(clearCache, DAY);
 
 function transform(answer: UaasAnswer): Answer {
     return {
@@ -134,7 +146,7 @@ export function getYandexMetricaAbt(req: Request, res: Response, clientId: strin
         if (param) {
             const cached = cache[`${clientId}_${param}`];
 
-            if (cached && (Date.now() - cached.time) < cache_ttl) {
+            if (cached && cached.time > Date.now()) {
                 return resolve(cached.data);
             }
         }
@@ -147,7 +159,7 @@ export function getYandexMetricaAbt(req: Request, res: Response, clientId: strin
                     const now = Date.now();
                     cache[`${clientId}_${answer.i}`] = {
                         data: answer,
-                        time: now,
+                        time: now + cache_ttl,
                     };
 
                     const expires = new Date(now + YEAR).toUTCString();
