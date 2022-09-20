@@ -1,5 +1,6 @@
-import { IncomingMessage as Request, ServerResponse as Response } from 'http';
+import { IncomingMessage, ServerResponse as Response } from 'http';
 import { get } from 'https';
+import tls from 'tls';
 
 type ClientId = string | number;
 
@@ -31,6 +32,11 @@ interface Answer {
 interface CacheItem {
     time: number;
     data: Answer;
+}
+
+interface Request extends IncomingMessage {
+    originalUrl?: string;
+    cookies?: Record<string, string>;
 }
 
 const cookieName = '_ymab_param';
@@ -186,12 +192,14 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
 
 export async function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie?: string, pageUrl?: string): Promise<Answer> {
     if (!iCookie) {
-        iCookie = getCookie(req.headers.cookie);
+        iCookie = req.cookies?.[cookieName] || getCookie(req.headers.cookie);
     }
 
-    const reqUrl = `https://${req.headers.host}${req.url}`;
+    const isHTTPS = req.socket instanceof tls.TLSSocket;
+    const protocol = isHTTPS ? 'https' : 'http';
+    const url = new URL(req.originalUrl || req.url || '', `${protocol}://${req.headers.host}`);
 
-    const answer = await getYandexMetricaAbtData(clientId, pageUrl || reqUrl, iCookie);
+    const answer = await getYandexMetricaAbtData(clientId, pageUrl || url.toString(), iCookie);
 
     if (answer.i && res && !res.headersSent) {
         const expires = new Date(Date.now() + YEAR).toUTCString();
