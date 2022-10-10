@@ -1,6 +1,6 @@
 {
   "name": "yandex-metrica-ab-node",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "",
   "homepage": "https://github.com/Firnis/yandex-metrica-ab-node",
   "bugs": {
@@ -18,7 +18,8 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node ./src/example",
-    "start:express": "ts-node ./src/example/express.ts"
+    "start:express": "ts-node ./src/example/express.ts",
+    "prepare": "npm run build"
   },
   "author": "firnis",
   "license": "MIT",
