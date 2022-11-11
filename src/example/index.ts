@@ -9,7 +9,7 @@ if (!clientId) {
 }
 
 const requestListener = async function (req: IncomingMessage, res: ServerResponse) {
-    const answer = await getYandexMetricaAbt(req, res, clientId);
+    const answer = await getYandexMetricaAbt(req, res, clientId, { logged_in: 'false' });
     console.log(answer);
 
     res.writeHead(200);

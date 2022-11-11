@@ -11,7 +11,7 @@ if (!clientId) {
 const app = express();
 
 app.get('/', async function (req, res) {
-    const answer = await getYandexMetricaAbt(req, res, clientId);
+    const answer = await getYandexMetricaAbt(req, res, clientId, { logged_in: 'false' });
     console.log(answer);
 
     res.send('Hello World');
