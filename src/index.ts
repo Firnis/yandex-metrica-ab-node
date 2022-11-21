@@ -2,8 +2,6 @@ import { IncomingMessage, ServerResponse as Response } from 'http';
 import { get } from 'https';
 import tls from 'tls';
 
-type ClientId = string | number;
-
 enum FlagType {
     Flag = 'flag',
     Visual = 'visual',
@@ -82,22 +80,8 @@ function transform(answer: UaasAnswer): Answer {
     }
 }
 
-function loadData(id: ClientId, iParam: string | undefined, pageUrl: string, clientFeatures?: Record<string, string>): Promise<Answer> {
+function loadData(url: string): Promise<Answer> {
     return new Promise((resolve, reject) => {
-        const builder = new URL('/v1/exps/', 'https://uaas.yandex.ru');
-        const params = builder.searchParams;
-        params.set('client_id', String(id));
-        if (iParam) {
-            params.set('i', decodeURIComponent(iParam));
-        }
-        if (pageUrl) {
-            params.set('url', pageUrl);
-        }
-        if (clientFeatures) {
-            params.set('client_features', JSON.stringify(clientFeatures));
-        }
-
-        const url = builder.toString();
         const timer = setTimeout(reject, timeout);
         let attempts = MAX_ATTEMPTS;
 
@@ -159,22 +143,37 @@ function getCookie(cookieString?: string, searchName = cookieName): string | und
 }
 
 export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCookie?: string, clientFeatures?: Record<string, string>): Promise<Answer> {
-    if (iCookie) {
-        if (decodeURIComponent(iCookie) === iCookie) {
-            iCookie = encodeURIComponent(iCookie);
-        }
+    const builder = new URL('/v1/exps/', 'https://uaas.yandex.ru');
+    const params = builder.searchParams;
 
-        const cached = cache[`${clientId}_${pageUrl}_${iCookie}`];
+    params.set('client_id', String(clientId));
+
+    if (iCookie) {
+        iCookie = decodeURIComponent(iCookie);
+
+        params.set('i', iCookie);
+    }
+    if (pageUrl) {
+        params.set('url', pageUrl);
+    }
+    if (clientFeatures) {
+        params.set('client_features', JSON.stringify(clientFeatures));
+    }
+
+    const url = builder.toString();
+
+    if (iCookie) {
+        const cached = cache[url];
 
         if (cached && cached.time > Date.now()) {
             return Promise.resolve(cached.data);
         }
     }
 
-    return loadData(clientId, iCookie, pageUrl, clientFeatures)
+    return loadData(url)
         .then(answer => {
             if (answer.i) {
-                cache[`${clientId}_${pageUrl}_${answer.i}`] = {
+                cache[url] = {
                     data: answer,
                     time: Date.now() + cache_ttl,
                 };
