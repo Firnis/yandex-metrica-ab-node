@@ -43,6 +43,7 @@ const TIMEOUT = 400;
 const cache_ttl = 200;
 const DAY = 1000 * 60 * 60 * 24;
 const YEAR = DAY * 365;
+const libName = 'yandex-metrica-ab-node';
 
 const cache: Record<string, CacheItem> = {};
 
@@ -182,7 +183,7 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
             return answer;
         })
         .catch((e) => {
-            console.error(e);
+            console.error(`${libName}:error`, e);
 
             return {
                 flags: {},
