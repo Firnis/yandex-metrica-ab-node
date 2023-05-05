@@ -39,10 +39,11 @@ interface Request extends IncomingMessage {
 
 const cookieName = '_ymab_param';
 const MAX_ATTEMPTS = 10;
-const timeout = 200;
+const TIMEOUT = 400;
 const cache_ttl = 200;
 const DAY = 1000 * 60 * 60 * 24;
 const YEAR = DAY * 365;
+const libName = 'yandex-metrica-ab-node';
 
 const cache: Record<string, CacheItem> = {};
 
@@ -80,9 +81,9 @@ function transform(answer: UaasAnswer): Answer {
     }
 }
 
-function loadData(url: string): Promise<Answer> {
+function loadData(url: string, timeout = TIMEOUT): Promise<Answer> {
     return new Promise((resolve, reject) => {
-        const timer = setTimeout(reject, timeout);
+        const timer = setTimeout(() => reject('timeout'), timeout);
         let attempts = MAX_ATTEMPTS;
 
         function success(answer: UaasAnswer) {
@@ -142,7 +143,7 @@ function getCookie(cookieString?: string, searchName = cookieName): string | und
     }
 }
 
-export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCookie?: string, clientFeatures?: Record<string, string>): Promise<Answer> {
+export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCookie?: string, clientFeatures?: Record<string, string>, timeout?: number): Promise<Answer> {
     const builder = new URL('/v1/exps/', 'https://uaas.yandex.ru');
     const params = builder.searchParams;
 
@@ -170,7 +171,7 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
         }
     }
 
-    return loadData(url)
+    return loadData(url, timeout)
         .then(answer => {
             if (answer.i) {
                 cache[url] = {
@@ -182,9 +183,7 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
             return answer;
         })
         .catch((e) => {
-            if (e instanceof Error) {
-                console.error(e);
-            }
+            console.error(`${libName}:error`, e);
 
             return {
                 flags: {},
@@ -195,11 +194,33 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
         });
 }
 
-function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie: string, pageUrl: string, clientFeatures?: Record<string, string>): Promise<Answer>;
-function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie: string, clientFeatures?: Record<string, string>): Promise<Answer>;
-function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, clientFeatures?: Record<string, string>): Promise<Answer>;
+function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie: string, pageUrl: string, clientFeatures?: Record<string, string>, timeout?: number): Promise<Answer>;
+function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie: string, clientFeatures?: Record<string, string>, timeout?: number): Promise<Answer>;
+function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, clientFeatures?: Record<string, string>, timeout?: number): Promise<Answer>;
+function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, timeout?: number): Promise<Answer>;
 
-async function getYandexMetricaAbt(req: Request, res: Response | null, clientId: string, iCookie?: string | Record<string, string>, pageUrl?: string | Record<string, string>, clientFeatures?: Record<string, string>): Promise<Answer> {
+async function getYandexMetricaAbt(
+    req: Request,
+    res: Response | null,
+    clientId: string,
+    iCookie?: string | Record<string, string> | number,
+    pageUrl?: string | Record<string, string> | number,
+    clientFeatures?: Record<string, string> | number,
+    timeout?: number
+): Promise<Answer> {
+    if (typeof iCookie === 'number') {
+        timeout = iCookie;
+        iCookie = undefined;
+    }
+    if (typeof pageUrl === 'number') {
+        timeout = pageUrl;
+        pageUrl = undefined;
+    }
+    if (typeof clientFeatures === 'number') {
+        timeout = clientFeatures;
+        clientFeatures = undefined;
+    }
+
     if (typeof iCookie === 'object') {
         clientFeatures = iCookie;
         iCookie = undefined;
@@ -217,7 +238,7 @@ async function getYandexMetricaAbt(req: Request, res: Response | null, clientId:
     const protocol = isHTTPS ? 'https' : 'http';
     const url = new URL(req.originalUrl || req.url || '', `${protocol}://${req.headers.host}`);
 
-    const answer = await getYandexMetricaAbtData(clientId, pageUrl || url.toString(), iCookie, clientFeatures);
+    const answer = await getYandexMetricaAbtData(clientId, pageUrl || url.toString(), iCookie, clientFeatures, timeout);
 
     if (answer.i && res && !res.headersSent) {
         const expires = new Date(Date.now() + YEAR).toUTCString();
