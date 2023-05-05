@@ -78,3 +78,8 @@ ym(counterId, 'init', {
 ```
     const answer = await getYandexMetricaAbt(req, res, clientId, { lang: 'ru', sex: 'male' });
 ```
+
+Пример с заданным таймаутом ожидания.
+```
+    const answer = await getYandexMetricaAbt(req, res, clientId, 500);
+```
