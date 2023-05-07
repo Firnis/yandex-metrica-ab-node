@@ -83,3 +83,53 @@ ym(counterId, 'init', {
 ```
     const answer = await getYandexMetricaAbt(req, res, clientId, 500);
 ```
+
+## Nextjs
+Так как nextjs работает в своём окружении и не содержит модули nodejs, то всё описанное не работает.
+
+pages/_app.tsx
+```
+import App, { AppContext } from 'next/app';
+import { getYandexMetricaAbt } from 'yandex-metrica-ab-node';
+import { MetricaExperimentsContext } from 'yandex-metrica-ab-react';
+
+export default class MyApp extends App {
+    static async getInitialProps({ ctx, Component }: AppContext) {
+        const {req, res} = ctx;
+
+        if (!req || !res) {
+            return { pageProps: {} };
+        }
+
+        const host = req.headers['x-forwarded-host'];
+        const proto = req.headers['x-forwarded-proto'];
+        const url = new URL(req.url || '', `${proto}://${host}`);
+
+        const [yandexMetricaData, pageProps] = await Promise.all([
+            getYandexMetricaAbt(req, res, 'metrika.xxxx', '', url.toString()),
+            Component.getInitialProps?.(ctx),
+        ]);
+
+        return {
+            pageProps: {
+                props: pageProps,
+                yandexMetricaData,
+            },
+        };
+    }
+
+    render() {
+        const { Component, pageProps } = this.props;
+        const { props, yandexMetricaData } = pageProps;
+
+        return (
+            <MetricaExperimentsContext.Provider value={yandexMetricaData}>
+                <Component { ...props } />
+            </MetricaExperimentsContext.Provider>
+        );
+    }
+}
+```
+
+Если оставить всё так, то библиотека yandex-metrica-ab-node попадёт в клиентский бандл вебпака. Она небольшая, но тащить её туда незачем.
+Подробнее о проблеме и как её обойти: https://nextjs.org/docs/pages/api-reference/functions/get-initial-props#caveats
