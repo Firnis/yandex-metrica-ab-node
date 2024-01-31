@@ -241,8 +241,11 @@ async function getYandexMetricaAbt(
     const answer = await getYandexMetricaAbtData(clientId, pageUrl || url.toString(), iCookie, clientFeatures, timeout);
 
     if (answer.i && res && !res.headersSent) {
-        const expires = new Date(Date.now() + YEAR).toUTCString();
-        res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(answer.i)}; expires=${expires};`);
+        let cookie = `${cookieName}=${encodeURIComponent(answer.i)}; max-age=${YEAR / 1000}; path=/;`;
+        if (isHTTPS) {
+            cookie += 'SameSite=None; Secure;';
+        }
+        res.setHeader('Set-Cookie', cookie);
     }
 
     return answer;
