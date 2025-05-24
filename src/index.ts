@@ -38,7 +38,7 @@ interface Request extends IncomingMessage {
 }
 
 const cookieName = '_ymab_param';
-const MAX_ATTEMPTS = 10;
+const MAX_ATTEMPTS = 2;
 const TIMEOUT = 400;
 const DAY = 1000 * 60 * 60 * 24;
 const YEAR = DAY * 365;
@@ -109,7 +109,10 @@ function sendRequest(url: string): Promise<UaasAnswer> {
             res.on('close', function () {
                 if (res.statusCode === 200) {
                     resolve(JSON.parse(data));
+                    return;
                 }
+
+                reject(new Error(`Status=${res.statusCode}: ${res.statusMessage}. ${data}`));
             });
 
             res.on('error', reject);
