@@ -27,11 +27,6 @@ interface Answer {
     ready: true;
 }
 
-interface CacheItem {
-    time: number;
-    data: Answer;
-}
-
 interface Request extends IncomingMessage {
     originalUrl?: string;
     cookies?: Record<string, string>;
@@ -40,23 +35,9 @@ interface Request extends IncomingMessage {
 const cookieName = '_ymab_param';
 const MAX_ATTEMPTS = 10;
 const TIMEOUT = 400;
-const cache_ttl = 200;
 const DAY = 1000 * 60 * 60 * 24;
 const YEAR = DAY * 365;
 const libName = 'yandex-metrica-ab-node';
-
-const cache: Record<string, CacheItem> = {};
-
-function clearCache() {
-    for (const [k, v] of Object.entries(cache)) {
-        if (v.time < Date.now()) {
-            delete cache[k];
-        }
-    }
-}
-
-// Чистим кэш раз в сутки
-setInterval(clearCache, DAY);
 
 function transform(answer: UaasAnswer): Answer {
     return {
@@ -161,27 +142,7 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
         params.set('client_features', JSON.stringify(clientFeatures));
     }
 
-    const url = builder.toString();
-
-    if (iCookie) {
-        const cached = cache[url];
-
-        if (cached && cached.time > Date.now()) {
-            return Promise.resolve(cached.data);
-        }
-    }
-
-    return loadData(url, timeout)
-        .then(answer => {
-            if (answer.i) {
-                cache[url] = {
-                    data: answer,
-                    time: Date.now() + cache_ttl,
-                };
-            }
-
-            return answer;
-        })
+    return loadData(builder.href, timeout)
         .catch((e) => {
             console.error(`${libName}:error`, e);
 
