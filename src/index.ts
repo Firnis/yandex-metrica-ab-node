@@ -6,6 +6,9 @@ enum FlagType {
     Flag = 'flag',
     Visual = 'visual',
     Redirect = 'redir',
+    Adv = 'adv',
+    AdvReplace = 'advReplaceId',
+    Integration = 'integration',
 }
 
 interface UaasKV {
@@ -18,12 +21,14 @@ interface UaasAnswer {
     flags: Array<UaasKV>;
     i: string;
     experiments: string;
+    testids: number[];
 }
 
 interface Answer {
     flags: Record<string, string[] | undefined>;
     i?: string;
     experiments?: string;
+    testids: number[];
     ready: true;
 }
 
@@ -39,12 +44,15 @@ const DAY = 1000 * 60 * 60 * 24;
 const YEAR = DAY * 365;
 const libName = 'yandex-metrica-ab-node';
 
+const serverFlags = new Set<FlagType>([FlagType.Flag, FlagType.Redirect]);
+
 function transform(answer: UaasAnswer): Answer {
     return {
         i: answer.i,
         experiments: answer.experiments,
+        testids: answer.testids,
         flags: answer.flags.reduce<Record<string, string[]>>((acc, { n, v, t }) => {
-            if (t === FlagType.Visual) {
+            if (!serverFlags.has(t)) {
                 return acc;
             }
 
@@ -150,6 +158,7 @@ export function getYandexMetricaAbtData(clientId: string, pageUrl: string, iCook
                 flags: {},
                 i: iCookie,
                 experiments: undefined,
+                testids: [],
                 ready: true,
             };
         });
